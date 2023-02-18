@@ -8,6 +8,7 @@ module.exports = async function ({ getNamedAccounts, deployments }) {
     const { deploy, log } = deployments;
     const { deployer } = await getNamedAccounts();
 
+    // Generate set of special users that can enter the presale
     const approvedAddressesForPresale = [
         "0xe4064d8E292DCD971514972415664765e51B5364",
         "0x98697033803CEf8bdDB7CA883786CfA9a96F2Be4",
@@ -17,25 +18,19 @@ module.exports = async function ({ getNamedAccounts, deployments }) {
         "0x054b7Ca525a58326162b916360166881dEB5F9C3",
     ];
 
-    const leafNodes = approvedAddressesForPresale.map((address) =>
+    // Get proofs which will be passed into the constructor
+    const proofs = approvedAddressesForPresale.map((address) =>
         keccak256(
             Buffer.concat([Buffer.from(address.replace("0x", ""), "hex")])
         )
     );
 
-    const merkleTree = new MerkleTree(leafNodes, keccak256, {
+    // Create merkle tree for constructor
+    const merkleTree = new MerkleTree(proofs, keccak256, {
         sortPairs: true,
     });
 
-    console.log("---------");
-    console.log("Merkle Tree");
-    console.log(merkleTree.toString());
-    console.log("Merkle Root: " + merkleTree.getHexRoot());
-
-    console.log("Proofs: " + leafNodes);
-    console.log("Proof 2: " + merkleTree.getHexProof(leafNodes[1]));
-
-    const arguments = [leafNodes, merkleTree.getHexRoot()];
+    const arguments = [proofs, merkleTree.getHexRoot()];
     const erc721Merkle = await deploy("ERC721Merkle", {
         from: deployer,
         args: arguments,
@@ -43,6 +38,7 @@ module.exports = async function ({ getNamedAccounts, deployments }) {
         waitConfirmations: network.config.blockConfirmations || 1,
     });
 
+    // only verify the code when not on development chains as hardhat
     if (
         !developmentChains.includes(network.name) &&
         process.env.ETHERSCAN_API_KEY
