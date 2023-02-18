@@ -50,7 +50,7 @@ contract ERC721Merkle is ERC721, ERC2981 {
     uint256 public tokenSupply = 1;
     uint256 public constant MAX_SUPPLY = 11;
     uint256 public constant PRICE = 0.000001 ether;
-    uint256 public constant PRESALE_PRICE = 0.0000001 ether;
+    uint256 public constant PRESALE_PRICE = 0.0000005 ether; // 50% off
 
     /* Owner */
     address immutable deployer;
