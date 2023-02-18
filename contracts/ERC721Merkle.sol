@@ -18,6 +18,8 @@ import "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
 // QUESTION: We also learnt the coding convention wirting storage variables with s as a prefix and private variables with _ as a prefix
 //           and immutables with i as a prefix, is this still the "best practice"?
 
+// QUESTION: Can I handle both cases (presale & casual mint) in one function to save gas?
+
 /*
  * @title A basic NFT contract with Bitmap Merkle Tree Presale
  * @author Patrick Zimmerer
@@ -67,16 +69,16 @@ contract ERC721Merkle is ERC721, ERC2981 {
         return bitAtIndex > 0;
     }
 
-    function isValid(
-        bytes32[] memory merkleProof,
-        bytes32 leaf
-    ) public view returns (bool) {
-        return MerkleProof.verify(merkleProof, i_merkleRoot, leaf);
-    }
-
+    /*
+     * @title Basic minting function
+     * @author Patrick Zimmerer
+     * @notice every user can mint as many NFT as the maxSupply supplies
+     * @dev when passing the checks it calls the internal _mint function in ERC721
+     */
     function mint() external payable {
         uint256 _tokenSupply = tokenSupply; // added local variable to reduce gas cost
         require(_tokenSupply < MAX_SUPPLY, "Max Supply reached.");
+        require(msg.sender == tx.origin, "no bots"); // block smart contracts from minting
         require(msg.value == PRICE, "Not enough ETH sent.");
         _mint(msg.sender, _tokenSupply);
         unchecked {
@@ -89,31 +91,31 @@ contract ERC721Merkle is ERC721, ERC2981 {
      * @title Presale function that let's specific users mint for half the price at presale ( only once )
      * @author Patrick Zimmerer
      * @notice only for users in our special users set
-     * @dev should reduce the cost of the first mint by special users and add the user to the mapping isClaimed
+     * @dev should reduce the cost of the first mint by special users and add the user to the mapping alreadyMinted
      */
-    function presale(bytes32[] calldata merkleProof) external payable {
+    function presale() external payable {
         uint256 _tokenSupply = tokenSupply; // added local variable to reduce gas cost
-        // QUESTION: Can I handle both cases (presale & casual mint) in one function to save gas?
         require(_tokenSupply < MAX_SUPPLY, "Max Supply reached.");
-
         require(msg.sender == tx.origin, "no bots"); // block smart contracts from minting
 
         // create a leaf node from the caller of this function
         bytes32 leaf = keccak256(abi.encode(msg.sender));
-        require(isValid(merkleProof, leaf), "Invalid Merkle Proof"); // require user in set of addresses !
-
+        require(
+            MerkleProof.verify(_merkleProof, i_merkleRoot, leaf),
+            "Invalid Merkle Proof"
+        ); // require user in whitelisted set of addresses for presale!
         require(
             alreadyMinted[msg.sender] == 0,
             "Already claimed the presale NFT."
-        ); // require user didn't already mint through presale => check with mapping
+        ); // require user should only be able to claim presale once => check with mapping
         require(msg.value == PRESALE_PRICE, "Not enough ETH sent.");
         _mint(msg.sender, _tokenSupply);
         unchecked {
             _tokenSupply++; // added unchecked block since overflow check gets handled by require MAX_SUPPLY
         }
 
-        // setting the user on the hasClaimed map after _mint with presale
-        alreadyMinted[msg.sender] = 1;
+        alreadyMinted[msg.sender] = 1; // setting the user on the alreadyMinted map after _mint with presale => 1 == true
+        //TODO: Need to add to the bitmap to compare bitmap && mappings gas cost
         tokenSupply = _tokenSupply;
     }
 
