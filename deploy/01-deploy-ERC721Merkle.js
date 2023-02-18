@@ -30,7 +30,10 @@ module.exports = async function ({ getNamedAccounts, deployments }) {
         sortPairs: true,
     });
 
-    const arguments = [proofs, merkleTree.getHexRoot()];
+    const royaltyFeeInBip = 250; // 250 => 2.5% royalty
+
+    const arguments = [proofs, merkleTree.getHexRoot(), royaltyFeeInBip];
+
     const erc721Merkle = await deploy("ERC721Merkle", {
         from: deployer,
         args: arguments,

@@ -18,7 +18,13 @@ import "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
 // QUESTION: We also learnt the coding convention wirting storage variables with s as a prefix and private variables with _ as a prefix
 //           and immutables with i as a prefix, is this still the "best practice"?
 
+// QUESTION: about merkleProof did I do that right and put it as an inupt Param into constructor so the logic can happen off chain,
+//           can we also move the merkleProof array offChain somehow in a database (later on obviously)?
+
 // QUESTION: Can I handle both cases (presale & casual mint) in one function to save gas?
+
+// QUESTION: Should I have adjusted the metadata which the NFT returns (_baseUri) to specify the seller_fee_basis_points (250 => 2.5%) & fee_recipient
+//           which is needed on older nft market places like opensea to make those royalties availible there
 
 /*
  * @title A basic NFT contract with Bitmap Merkle Tree Presale
@@ -28,7 +34,7 @@ import "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
  */
 contract ERC721Merkle is ERC721, ERC2981 {
     // using uints which are slightly more efficient than bools because the EVM casts bools to uint
-    mapping(address => uint256) public alreadyMinted;
+    mapping(address => uint256) public amountLeftToMint;
 
     // merkle tree
     bytes32 private immutable i_merkleRoot;
@@ -36,6 +42,9 @@ contract ERC721Merkle is ERC721, ERC2981 {
 
     // bitmap
     uint256 bitmap;
+    uint256 private constant MAX_INT =
+        0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
+    uint256[1] public presaleBitmap = [MAX_INT];
 
     /* State Variables */
     uint256 public tokenSupply = 1;
@@ -48,26 +57,24 @@ contract ERC721Merkle is ERC721, ERC2981 {
 
     constructor(
         bytes32[] memory merkleProof,
-        bytes32 merkleRoot
+        bytes32 merkleRoot,
+        uint96 royaltyFeeInBips
     ) ERC721("RareNFTMerkle", "RNM") {
         deployer = msg.sender;
         _merkleProof = merkleProof;
         i_merkleRoot = merkleRoot;
+        setRoyaltyInfo(msg.sender, royaltyFeeInBips); // first param is royaltyReceiver could be set to other address through the constructor
+    }
+
+    function setRoyaltyInfo(
+        address receiver,
+        uint96 feeNumerator
+    ) internal virtual {
+        _setDefaultRoyalty(receiver, feeNumerator);
     }
 
     // --------------------------------------------------------------------------------------------------------
     // TODO: Work on Merkletree / Merkleproof & Bitmap, Include ERC 2918 Royalty
-
-    function setDataWithBitmap(uint256 data) external {
-        bitmap = data;
-    }
-
-    function readWithBitmap(
-        uint256 indexFromRight
-    ) external view returns (bool) {
-        uint256 bitAtIndex = bitmap & (1 << indexFromRight);
-        return bitAtIndex > 0;
-    }
 
     /*
      * @title Basic minting function
@@ -105,16 +112,20 @@ contract ERC721Merkle is ERC721, ERC2981 {
             "Invalid Merkle Proof"
         ); // require user in whitelisted set of addresses for presale!
         require(
-            alreadyMinted[msg.sender] == 0,
+            amountLeftToMint[msg.sender] > 0,
             "Already claimed the presale NFT."
         ); // require user should only be able to claim presale once => check with mapping
         require(msg.value == PRESALE_PRICE, "Not enough ETH sent.");
+
         _mint(msg.sender, _tokenSupply);
         unchecked {
             _tokenSupply++; // added unchecked block since overflow check gets handled by require MAX_SUPPLY
         }
 
-        alreadyMinted[msg.sender] = 1; // setting the user on the alreadyMinted map after _mint with presale => 1 == true
+        amountLeftToMint[msg.sender]--; // setting the users amountLeftToMint on the map after _mint
+
+        //TODO: Need to add to the bitmap to compare bitmap && mappings gas cost
+        //TODO: Need to add to the bitmap to compare bitmap && mappings gas cost
         //TODO: Need to add to the bitmap to compare bitmap && mappings gas cost
         tokenSupply = _tokenSupply;
     }
@@ -146,7 +157,7 @@ contract ERC721Merkle is ERC721, ERC2981 {
         payable(deployer).transfer(address(this).balance);
     }
 
-    function totalSupply() external view returns (uint256) {
-        return tokenSupply - 1; // token supply starts at 1
+    function totalSupply() external pure returns (uint256) {
+        return MAX_SUPPLY - 1; // token supply starts at 1
     }
 }
