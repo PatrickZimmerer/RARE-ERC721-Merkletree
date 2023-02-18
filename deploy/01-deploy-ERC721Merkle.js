@@ -1,8 +1,5 @@
-const { network, ethers } = require("hardhat");
-const {
-    networkConfig,
-    developmentChains,
-} = require("../helper-hardhat-config");
+const { network } = require("hardhat");
+const { developmentChains } = require("../helper-hardhat-config");
 const keccak256 = require("keccak256");
 const { MerkleTree } = require("merkletreejs");
 const { verify } = require("../utils/verify");
@@ -10,9 +7,8 @@ const { verify } = require("../utils/verify");
 module.exports = async function ({ getNamedAccounts, deployments }) {
     const { deploy, log } = deployments;
     const { deployer } = await getNamedAccounts();
-    const chainId = network.config.chainId;
 
-    let approvedAddressesForPresale = [
+    const approvedAddressesForPresale = [
         "0xe4064d8E292DCD971514972415664765e51B5364",
         "0x98697033803CEf8bdDB7CA883786CfA9a96F2Be4",
         "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
@@ -36,14 +32,10 @@ module.exports = async function ({ getNamedAccounts, deployments }) {
     console.log(merkleTree.toString());
     console.log("Merkle Root: " + merkleTree.getHexRoot());
 
-    console.log("Proofs: " + merkleTree.getHexProofs());
+    console.log("Proofs: " + leafNodes);
     console.log("Proof 2: " + merkleTree.getHexProof(leafNodes[1]));
 
-    const arguments = [
-        approvedAddressesForPresale,
-        merkleTree.getHexRoot(),
-        leafNodes,
-    ];
+    const arguments = [leafNodes, merkleTree.getHexRoot()];
     const erc721Merkle = await deploy("ERC721Merkle", {
         from: deployer,
         args: arguments,
@@ -58,7 +50,8 @@ module.exports = async function ({ getNamedAccounts, deployments }) {
         log("Verifying...");
         await verify(erc721Merkle.address, arguments);
     }
+    log("deployed successfully at:", erc721Merkle.address);
     log("-----------------------------------------");
 };
 
-module.exports.tags = ["all", "raffle"];
+module.exports.tags = ["all", "erc721Merkle"];
