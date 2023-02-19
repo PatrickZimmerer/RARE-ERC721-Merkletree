@@ -66,15 +66,10 @@ contract ERC721Merkle is ERC721, ERC2981 {
         setRoyaltyInfo(msg.sender, royaltyFeeInBips); // first param is royaltyReceiver could be set to other address through the constructor
     }
 
-    function setRoyaltyInfo(
-        address receiver,
-        uint96 feeNumerator
-    ) internal virtual {
-        _setDefaultRoyalty(receiver, feeNumerator);
-    }
-
     // --------------------------------------------------------------------------------------------------------
-    // TODO: Work on Merkletree / Merkleproof & Bitmap, Include ERC 2918 Royalty
+    // TODO: Work on Bitmap
+    // TODO: Work on Bitmap
+    // TODO: Work on Bitmap
 
     /*
      * @title Basic minting function
@@ -131,6 +126,17 @@ contract ERC721Merkle is ERC721, ERC2981 {
     }
 
     // --------------------------------------------------------------------------------------------------------
+
+    /*
+     * @title Sets royalty fee & receiver
+     * @dev sets the royalty fee when contract is deployed
+     */
+    function setRoyaltyInfo(
+        address receiver,
+        uint96 feeNumerator
+    ) internal virtual {
+        _setDefaultRoyalty(receiver, feeNumerator);
+    }
 
     /*
      * @dev since implemented in ERC721 & ERC2981 it needs to be overwritten
