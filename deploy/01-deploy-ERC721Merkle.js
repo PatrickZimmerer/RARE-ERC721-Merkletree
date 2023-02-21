@@ -1,8 +1,8 @@
 const { network } = require("hardhat");
 const { developmentChains } = require("../helper-hardhat-config");
+const { verify } = require("../utils/verify");
 const keccak256 = require("keccak256");
 const { MerkleTree } = require("merkletreejs");
-const { verify } = require("../utils/verify");
 
 module.exports = async function ({ getNamedAccounts, deployments }) {
     const { deploy, log } = deployments;
