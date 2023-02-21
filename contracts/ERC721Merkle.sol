@@ -15,16 +15,22 @@ import "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
 
 // QUESTION: In the solidity course of Patrick Collins we learnt strings in solidity are basically an array so it's cheaper to make an if check
 //           and return a custom error instead? Is it good practice or did something change in the last year / months?
+// ANSWER:
+
 // QUESTION: We also learnt the coding convention wirting storage variables with s as a prefix and private variables with _ as a prefix
 //           and immutables with i as a prefix, is this still the "best practice"?
+// ANSWER:
 
 // QUESTION: about merkleProof did I do that right and put it as an inupt Param into constructor so the logic can happen off chain,
 //           can we also move the merkleProof array offChain somehow in a database (later on obviously)?
+// ANSWER:
 
 // QUESTION: Can I handle both cases (presale & casual mint) in one function to save gas?
+// ANSWER:
 
 // QUESTION: Should I have adjusted the metadata which the NFT returns (_baseUri) to specify the seller_fee_basis_points (250 => 2.5%) & fee_recipient
 //           which is needed on older nft market places like opensea to make those royalties availible there
+// ANSWER:
 
 /*
  * @title A basic NFT contract with Bitmap Merkle Tree Presale
