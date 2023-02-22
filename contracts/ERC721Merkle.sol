@@ -49,9 +49,14 @@ contract ERC721Merkle is ERC721, ERC2981 {
     bytes32 private immutable i_merkleRoot;
     bytes32[] private _merkleProof;
 
-    // bitmap
+    // bitmap my try
     mapping(address => uint256) private canUserMintBitmaps;
     uint8 constant INTERACTION_PRESALE_INDEX = 1;
+
+    // bitmap Jeffrey
+    uint256 private constant MAX_INT =
+        0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
+    uint256[3] arr = [MAX_INT, MAX_INT, MAX_INT];
 
     /* State Variables */
     uint256 public tokenSupply = 1;
@@ -143,6 +148,48 @@ contract ERC721Merkle is ERC721, ERC2981 {
             "Already claimed the presale NFT."
         ); // user should only be able to claim presale once => check with BITMAP
         setUserCanMintBitmap(msg.sender, INTERACTION_PRESALE_INDEX);
+        unchecked {
+            _tokenSupply++; // added unchecked block since overflow check gets handled by require MAX_SUPPLY
+        }
+        tokenSupply = _tokenSupply;
+        _mint(msg.sender, _tokenSupply);
+    }
+
+    function claimTicketOrBlockTransaction(uint256 ticketNumber) internal {
+        require(ticketNumber < arr.length * 256, "too large");
+        uint256 storageOffset = ticketNumber / 256;
+        uint256 offsetWithin256 = ticketNumber % 256;
+        uint256 storedBit = (arr[storageOffset] >> offsetWithin256) &
+            uint256(1);
+        require(storedBit == 1, "already taken");
+
+        arr[storageOffset] =
+            arr[storageOffset] &
+            ~(uint256(1) << offsetWithin256);
+    }
+
+    /*
+     * @title Presale function that let's specific users mint for half the price at presale ( only once )
+     * @notice only for users in our special users set
+     * @notice Im aware of users can use presale twice now through persaleMapping and presaleBitmap
+     * @dev should reduce the cost of the first mint by special users and add the user to the mapping alreadyMinted
+     */
+
+    function presaleBitmapJeff(
+        bytes calldata signature,
+        uint256 ticketNumber
+    ) external payable {
+        uint256 _tokenSupply = tokenSupply; // added local variable to reduce gas cost
+        require(_tokenSupply < MAX_SUPPLY, "Max Supply reached."); // shouldn't this be handled by the erc20capped extension?
+        require(msg.value == PRESALE_PRICE, "Not enough ETH sent.");
+        require(msg.sender == tx.origin, "No bots"); // block smart contracts from minting
+        bytes32 leaf = keccak256(abi.encode(msg.sender)); // create a leaf node from the caller of this function
+        require(
+            MerkleProof.verify(_merkleProof, i_merkleRoot, leaf),
+            "Invalid Merkle Proof. User not allowed to do a presale mint"
+        ); // require user in whitelisted set of addresses for presale!
+        require(verifySig(msg.sender, ticketNumber, signature));
+        claimTicketOrBlockTransaction(ticketNumber, msg.sender);
         unchecked {
             _tokenSupply++; // added unchecked block since overflow check gets handled by require MAX_SUPPLY
         }
