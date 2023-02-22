@@ -32,6 +32,9 @@ import "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
 //           which is needed on older nft market places like opensea to make those royalties availible there
 // ANSWER:
 
+// QUESTION: Is there a way to check gas efficiency without wrting tests and using the gas reporter ?
+// ANSWER:
+
 /*
  * @title A basic NFT contract with Bitmap Merkle Tree Presale
  * @author Patrick Zimmerer
@@ -40,17 +43,15 @@ import "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
  */
 contract ERC721Merkle is ERC721, ERC2981 {
     // using uints which are slightly more efficient than bools because the EVM casts bools to uint
-    mapping(address => uint256) public amountLeftToMint;
+    mapping(address => uint256) public canUserMint;
 
     // merkle tree
     bytes32 private immutable i_merkleRoot;
     bytes32[] private _merkleProof;
 
     // bitmap
-    uint256 bitmap;
-    uint256 private constant MAX_INT =
-        0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
-    uint256[1] public presaleBitmap = [MAX_INT];
+    mapping(address => uint256) private canUserMintBitmaps;
+    uint8 constant INTERACTION_PRESALE_INDEX = 1;
 
     /* State Variables */
     uint256 public tokenSupply = 1;
@@ -73,18 +74,14 @@ contract ERC721Merkle is ERC721, ERC2981 {
     }
 
     // --------------------------------------------------------------------------------------------------------
-    // TODO: Work on Bitmap
-    // TODO: Work on Bitmap
-    // TODO: Work on Bitmap
 
     /*
      * @title Basic minting function
-     * @author Patrick Zimmerer
      * @notice every user can mint as many NFT as the maxSupply supplies
      * @dev when passing the checks it calls the internal _mint function in ERC721
      */
     function mint() external payable {
-        uint256 _tokenSupply = tokenSupply; // added local variable to reduce gas cost
+        uint256 _tokenSupply = tokenSupply; // added local variable to reduce gas cost (amount of READs)
         require(_tokenSupply < MAX_SUPPLY, "Max Supply reached.");
         require(msg.sender == tx.origin, "no bots"); // block smart contracts from minting
         require(msg.value == PRICE, "Not enough ETH sent.");
@@ -97,38 +94,73 @@ contract ERC721Merkle is ERC721, ERC2981 {
 
     /*
      * @title Presale function that let's specific users mint for half the price at presale ( only once )
-     * @author Patrick Zimmerer
      * @notice only for users in our special users set
+     * @notice Im aware of users can use presale twice now through persaleMapping and presaleBitmap
      * @dev should reduce the cost of the first mint by special users and add the user to the mapping alreadyMinted
      */
-    function presale() external payable {
+    function presaleMapping() external payable {
         uint256 _tokenSupply = tokenSupply; // added local variable to reduce gas cost
-        require(_tokenSupply < MAX_SUPPLY, "Max Supply reached.");
-        require(msg.sender == tx.origin, "no bots"); // block smart contracts from minting
-
-        // create a leaf node from the caller of this function
-        bytes32 leaf = keccak256(abi.encode(msg.sender));
+        require(_tokenSupply < MAX_SUPPLY, "Max Supply reached."); // shouldn't this be handled by the erc20capped extension?
+        require(msg.value == PRESALE_PRICE, "Not enough ETH sent.");
+        require(msg.sender == tx.origin, "No bots"); // block smart contracts from minting
+        bytes32 leaf = keccak256(abi.encode(msg.sender)); // create a leaf node from the caller of this function
         require(
             MerkleProof.verify(_merkleProof, i_merkleRoot, leaf),
-            "Invalid Merkle Proof"
+            "Invalid Merkle Proof. User not allowed to do a presale mint"
         ); // require user in whitelisted set of addresses for presale!
         require(
-            amountLeftToMint[msg.sender] > 0,
-            "Already claimed the presale NFT."
-        ); // require user should only be able to claim presale once => check with mapping
-        require(msg.value == PRESALE_PRICE, "Not enough ETH sent.");
+            canUserMint[msg.sender] < 1,
+            "Already claimed the presale mint."
+        ); // user should only be able to claim presale once => check with MAPPING
+        canUserMint[msg.sender]++; // setting the users amountLeftToMint on the map after _mint
 
-        _mint(msg.sender, _tokenSupply);
         unchecked {
             _tokenSupply++; // added unchecked block since overflow check gets handled by require MAX_SUPPLY
         }
-
-        amountLeftToMint[msg.sender]--; // setting the users amountLeftToMint on the map after _mint
-
-        //TODO: Need to add to the bitmap to compare bitmap && mappings gas cost
-        //TODO: Need to add to the bitmap to compare bitmap && mappings gas cost
-        //TODO: Need to add to the bitmap to compare bitmap && mappings gas cost
         tokenSupply = _tokenSupply;
+        _mint(msg.sender, _tokenSupply);
+    }
+
+    /*
+     * @title Presale function that let's specific users mint for half the price at presale ( only once )
+     * @notice only for users in our special users set
+     * @notice Im aware of users can use presale twice now through persaleMapping and presaleBitmap
+     * @dev should reduce the cost of the first mint by special users and add the user to the mapping alreadyMinted
+     */
+
+    function presaleBitmap() external payable {
+        uint256 _tokenSupply = tokenSupply; // added local variable to reduce gas cost
+        require(_tokenSupply < MAX_SUPPLY, "Max Supply reached."); // shouldn't this be handled by the erc20capped extension?
+        require(msg.value == PRESALE_PRICE, "Not enough ETH sent.");
+        require(msg.sender == tx.origin, "No bots"); // block smart contracts from minting
+        bytes32 leaf = keccak256(abi.encode(msg.sender)); // create a leaf node from the caller of this function
+        require(
+            MerkleProof.verify(_merkleProof, i_merkleRoot, leaf),
+            "Invalid Merkle Proof. User not allowed to do a presale mint"
+        ); // require user in whitelisted set of addresses for presale!
+        require(
+            canUserMintBitmap(msg.sender, INTERACTION_PRESALE_INDEX),
+            "Already claimed the presale NFT."
+        ); // user should only be able to claim presale once => check with BITMAP
+        setUserCanMintBitmap(msg.sender, INTERACTION_PRESALE_INDEX);
+        unchecked {
+            _tokenSupply++; // added unchecked block since overflow check gets handled by require MAX_SUPPLY
+        }
+        tokenSupply = _tokenSupply;
+        _mint(msg.sender, _tokenSupply);
+    }
+
+    function setUserCanMintBitmap(address user, uint8 interactionIndex) public {
+        require(interactionIndex < 256, "Invalid interaction index");
+        canUserMintBitmaps[user] |= uint256(1) << interactionIndex;
+    }
+
+    function canUserMintBitmap(
+        address user,
+        uint8 interactionIndex
+    ) public view returns (bool) {
+        require(interactionIndex < 256, "Invalid interaction index");
+        return canUserMintBitmaps[user] & (uint256(1) << interactionIndex) != 0;
     }
 
     // --------------------------------------------------------------------------------------------------------
