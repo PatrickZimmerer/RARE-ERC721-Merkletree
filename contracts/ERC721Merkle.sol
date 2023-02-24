@@ -54,9 +54,8 @@ contract ERC721Merkle is ERC721, ERC2981 {
     uint8 constant INTERACTION_PRESALE_INDEX = 1;
 
     // bitmap Jeffrey
-    uint256 private constant MAX_INT =
-        0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
-    uint256[3] arr = [MAX_INT, MAX_INT, MAX_INT];
+    uint16 private constant MAX_INT = 0xffff;
+    uint16[1] arr = [MAX_INT];
 
     /* State Variables */
     uint256 public tokenSupply = 1;
@@ -155,17 +154,16 @@ contract ERC721Merkle is ERC721, ERC2981 {
         _mint(msg.sender, _tokenSupply);
     }
 
-    function claimTicketOrBlockTransaction(uint256 ticketNumber) internal {
-        require(ticketNumber < arr.length * 256, "too large");
-        uint256 storageOffset = ticketNumber / 256;
-        uint256 offsetWithin256 = ticketNumber % 256;
-        uint256 storedBit = (arr[storageOffset] >> offsetWithin256) &
-            uint256(1);
+    function claimTicketOrBlockTransaction(uint16 ticketNumber) internal {
+        require(ticketNumber < MAX_SUPPLY, "That ticket doesn't exist");
+        uint16 storageOffset = 0; // since it's an array with a single entry => 0
+        uint16 offsetWithin16 = ticketNumber % 16;
+        uint16 storedBit = (arr[storageOffset] >> offsetWithin16) & uint16(1);
         require(storedBit == 1, "already taken");
 
         arr[storageOffset] =
             arr[storageOffset] &
-            ~(uint256(1) << offsetWithin256);
+            ~(uint16(1) << offsetWithin16);
     }
 
     /*
@@ -188,7 +186,10 @@ contract ERC721Merkle is ERC721, ERC2981 {
             MerkleProof.verify(_merkleProof, i_merkleRoot, leaf),
             "Invalid Merkle Proof. User not allowed to do a presale mint"
         ); // require user in whitelisted set of addresses for presale!
-        require(verifySig(msg.sender, ticketNumber, signature));
+        require(
+            verifySignature(signature, _msgSender(), ticketNumber),
+            "Invalid signature"
+        );
         claimTicketOrBlockTransaction(ticketNumber, msg.sender);
         unchecked {
             _tokenSupply++; // added unchecked block since overflow check gets handled by require MAX_SUPPLY
