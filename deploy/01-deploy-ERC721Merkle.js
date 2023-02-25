@@ -5,6 +5,9 @@ const keccak256 = require("keccak256");
 const { MerkleTree } = require("merkletreejs");
 
 module.exports = async function ({ getNamedAccounts, deployments }) {
+    // with mapping deployed at: https://goerli.etherscan.io/address/0x00872f1fd318E547d29d22071920e39A6D89a671
+    // with bitmap deployed at: https://goerli.etherscan.io/address/0xd8D3f1ac4ae16D648ba95855c226Cc84e5477cAd
+
     const { deploy, log } = deployments;
     const { deployer } = await getNamedAccounts();
 
