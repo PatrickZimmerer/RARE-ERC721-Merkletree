@@ -20,7 +20,7 @@ module.exports = async function ({ getNamedAccounts, deployments }) {
     // the bitmap approach so instead of signing the transaction with the ticket as data and verifying the signature
     // and if the user already used his ticket and is approved for that ticket we can just include the ticketnumber in
     // the address hash on this case my address has ticket nr 1 & 6
-    const approvedAddressesForPresaleBitmap = [
+    const approvedAddressesForPresaleWithBitmap = [
         "0xe4064d8E292DCD971514972415664765e51B5364" + ticket1,
         "0x98697033803CEf8bdDB7CA883786CfA9a96F2Be4" + ticket2,
         "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" + ticket3,
@@ -40,6 +40,11 @@ module.exports = async function ({ getNamedAccounts, deployments }) {
     ];
 
     // Get proofs which will be passed into the constructor
+    const proofsWithBitmap = approvedAddressesForPresale.map((address) =>
+        keccak256(
+            Buffer.concat([Buffer.from(address.replace("0x", ""), "hex")])
+        )
+    );
     const proofs = approvedAddressesForPresale.map((address) =>
         keccak256(
             Buffer.concat([Buffer.from(address.replace("0x", ""), "hex")])
@@ -47,12 +52,21 @@ module.exports = async function ({ getNamedAccounts, deployments }) {
     );
 
     // Create merkle tree for constructor
+    const merkleTreeWithBitmap = new MerkleTree(proofsWithBitmap, keccak256, {
+        sortPairs: true,
+    });
+
     const merkleTree = new MerkleTree(proofs, keccak256, {
         sortPairs: true,
     });
 
     const royaltyFeeInBip = 250; // 250 => 2.5% royalty
 
+    const argumentsWithBitmap = [
+        proofsWithBitmap,
+        merkleTreeWithBitmap.getHexRoot(),
+        royaltyFeeInBip,
+    ];
     const arguments = [proofs, merkleTree.getHexRoot(), royaltyFeeInBip];
 
     const erc721Merkle = await deploy("ERC721Merkle", {
