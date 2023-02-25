@@ -7,6 +7,7 @@ import "@openzeppelin/contracts/token/common/ERC2981.sol";
 import "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
 
 // QUESTION: Merkle trees are only cost effective for ~32 or fewer addressses as stated in GitHub Repo whats the other option for > 32?
+// ANSWER:
 
 // QUESTION: can we make those 2 constants a uint32 or something lower to save gas since we know the value and they are consts?
 // QUESTION: token supply won't reach > 11 can we make that a lower uint as well? =>
@@ -43,19 +44,14 @@ import "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
  */
 contract ERC721Merkle is ERC721, ERC2981 {
     // using uints which are slightly more efficient than bools because the EVM casts bools to uint
-    mapping(address => uint256) public canUserMint;
+    mapping(address => uint256) public canUserPresale;
 
     // merkle tree
-    bytes32 private immutable i_merkleRoot;
-    bytes32[] private _merkleProof;
+    bytes32 private immutable merkleRoot;
 
-    // bitmap my try
-    mapping(address => uint16) private canUserMintBitmaps;
-    uint8 constant INTERACTION_PRESALE_INDEX = 1;
-
-    // bitmap Jeffrey
-    uint16 private constant MAX_INT = 0xffff;
-    uint16[1] arr = [MAX_INT];
+    // bitmap
+    // uint16 private constant MAX_INT = 0xffff;
+    // uint16[1] bitmap = [MAX_INT];
 
     /* State Variables */
     uint256 public tokenSupply = 1;
@@ -67,14 +63,12 @@ contract ERC721Merkle is ERC721, ERC2981 {
     address immutable deployer;
 
     constructor(
-        bytes32[] memory merkleProof,
-        bytes32 merkleRoot,
-        uint96 royaltyFeeInBips
+        bytes32 _merkleRoot,
+        uint96 _royaltyFeeInBips
     ) ERC721("RareNFTMerkle", "RNM") {
-        deployer = msg.sender;
-        _merkleProof = merkleProof;
-        i_merkleRoot = merkleRoot;
-        setRoyaltyInfo(msg.sender, royaltyFeeInBips); // first param is royaltyReceiver could be set to other address through the constructor
+        deployer = _msgSender();
+        merkleRoot = _merkleRoot;
+        setRoyaltyInfo(_msgSender(), _royaltyFeeInBips); // first param is royaltyReceiver could be set to other address through the constructor
     }
 
     // --------------------------------------------------------------------------------------------------------
@@ -84,16 +78,15 @@ contract ERC721Merkle is ERC721, ERC2981 {
      * @notice every user can mint as many NFT as the maxSupply supplies
      * @dev when passing the checks it calls the internal _mint function in ERC721
      */
-    function mint() external payable {
+    function mint(address _to) external payable {
         uint256 _tokenSupply = tokenSupply; // added local variable to reduce gas cost (amount of READs)
         require(_tokenSupply < MAX_SUPPLY, "Max Supply reached.");
-        require(msg.sender == tx.origin, "no bots"); // block smart contracts from minting
         require(msg.value == PRICE, "Not enough ETH sent.");
-        _mint(msg.sender, _tokenSupply);
         unchecked {
             _tokenSupply++; // added unchecked block since overflow check gets handled by require MAX_SUPPLY
         }
         tokenSupply = _tokenSupply;
+        _safeMint(_to, _tokenSupply - 1);
     }
 
     // -------------------------   PRESALE WITH MAPPING CHECK   -------------------------
@@ -104,27 +97,26 @@ contract ERC721Merkle is ERC721, ERC2981 {
      * @notice Im aware of users can use presale twice now through persaleMapping and presaleBitmap
      * @dev should reduce the cost of the first mint by special users and add the user to the mapping alreadyMinted
      */
-    function presaleMapping() external payable {
+    function presaleMapping(bytes32[] calldata merkleProof) external payable {
         uint256 _tokenSupply = tokenSupply; // added local variable to reduce gas cost
         require(_tokenSupply < MAX_SUPPLY, "Max Supply reached.");
         require(msg.value == PRESALE_PRICE, "Not enough ETH sent.");
-        require(msg.sender == tx.origin, "No bots"); // block smart contracts from minting
-        bytes32 leaf = keccak256(abi.encode(msg.sender)); // create a leaf node from the caller of this function
+        bytes32 leaf = keccak256(abi.encode(_msgSender())); // create a leaf node from the caller of this function
         require(
-            MerkleProof.verify(_merkleProof, i_merkleRoot, leaf),
+            MerkleProof.verify(merkleProof, merkleRoot, leaf),
             "Invalid Merkle Proof. User not allowed to do a presale mint"
-        ); // require user in whitelisted set of addresses for presale!
+        ); // require user address in whitelist for presale!
         require(
-            canUserMint[msg.sender] < 1,
+            canUserPresale[_msgSender()] < 1,
             "Already claimed the presale mint."
         ); // user should only be able to claim presale once => check with MAPPING
-        canUserMint[msg.sender]++; // setting the users amountLeftToMint on the map after _mint
+        canUserPresale[_msgSender()]++; // setting the users amountLeftToMint on the map after _mint
 
         unchecked {
             _tokenSupply++; // added unchecked block since overflow check gets handled by require MAX_SUPPLY
         }
         tokenSupply = _tokenSupply;
-        _mint(msg.sender, _tokenSupply);
+        _safeMint(_msgSender(), _tokenSupply - 1);
     }
 
     // -------------------------   PRESALE WITH BITMAP CHECK LIKE IN ARTICLE  -------------------------
@@ -135,66 +127,36 @@ contract ERC721Merkle is ERC721, ERC2981 {
      * @dev should reduce the cost of the first mint by special users and add the user to the mapping alreadyMinted
      */
 
-    function presaleBitmapJeff(
-        bytes calldata _signature,
-        uint16 _ticketNumber
-    ) external payable {
-        uint256 _tokenSupply = tokenSupply; // added local variable to reduce gas cost
-        require(_tokenSupply < MAX_SUPPLY, "Max Supply reached.");
-        require(msg.value == PRESALE_PRICE, "Not enough ETH sent.");
-        require(msg.sender == tx.origin, "No bots"); // block smart contracts from minting
-        bytes32 leaf = keccak256(abi.encode(msg.sender)); // create a leaf node from the caller of this function
-        require(
-            MerkleProof.verify(_merkleProof, i_merkleRoot, leaf),
-            "Invalid Merkle Proof. User not allowed to do a presale mint"
-        ); // require user in whitelisted set of addresses for presale!
-        require(
-            verifySignature(_ticketNumber, _signature, msg.sender),
-            "Invalid signature"
-        );
-        claimTicketOrBlockTransaction(_ticketNumber);
-        unchecked {
-            _tokenSupply++; // added unchecked block since overflow check gets handled by require MAX_SUPPLY
-        }
-        tokenSupply = _tokenSupply;
-        _safeMint(msg.sender, _tokenSupply);
-    }
+    // function presaleBitmap(uint16 _ticketNumber) external payable {
+    //     uint256 _tokenSupply = tokenSupply; // added local variable to reduce gas cost
+    //     require(_tokenSupply < MAX_SUPPLY, "Max Supply reached.");
+    //     require(msg.value == PRESALE_PRICE, "Not enough ETH sent.");
+    //     require(_msgSender() == tx.origin, "No bots"); // block smart contracts from minting
+    //     bytes32 leaf = keccak256(abi.encode(_msgSender())); // create a leaf node from the caller of this function
+    //     require(
+    //         MerkleProof.verify(_merkleProof, i_merkleRoot, leaf),
+    //         "Invalid Merkle Proof. User not allowed to do a presale mint"
+    //     ); // require user in whitelisted set of addresses for presale!
+    //     claimTicketOrBlockTransaction(_ticketNumber);
+    //     unchecked {
+    //         _tokenSupply++; // added unchecked block since overflow check gets handled by require MAX_SUPPLY
+    //     }
+    //     tokenSupply = _tokenSupply;
+    //     _safeMint(_msgSender(), _tokenSupply);
+    // }
 
-    function verifySignature(
-        uint16 _ticketNumber,
-        bytes calldata _signature,
-        address _signer
-    ) public pure returns (bool) {
-        bytes32 ticketNumberHash = keccak256(
-            abi.encodePacked("\x19Ethereum Signed Message:\n2", _ticketNumber)
-        );
-        (bytes32 r, bytes32 s, uint8 v) = _split(_signature);
-        address recoveredSigner = ecrecover(ticketNumberHash, v, r, s);
-        return recoveredSigner == _signer;
-    }
+    // function claimTicketOrBlockTransaction(uint16 ticketNumber) internal {
+    //     require(ticketNumber < MAX_SUPPLY, "That ticket doesn't exist");
+    //     uint16 storageOffset = 0; // since it's an array with a single entry => 0
+    //     uint16 offsetWithin16 = ticketNumber % 16;
+    //     uint16 storedBit = (bitmap[storageOffset] >> offsetWithin16) &
+    //         uint16(1);
+    //     require(storedBit == 1, "already taken");
 
-    function _split(
-        bytes memory _signature
-    ) internal pure returns (bytes32 r, bytes32 s, uint8 v) {
-        require(_signature.length == 65, "Invalid signature length");
-        assembly {
-            r := mload(add(_signature, 32))
-            s := mload(add(_signature, 64))
-            v := byte(0, mload(add(_signature, 96)))
-        }
-    }
-
-    function claimTicketOrBlockTransaction(uint16 ticketNumber) internal {
-        require(ticketNumber < MAX_SUPPLY, "That ticket doesn't exist");
-        uint16 storageOffset = 0; // since it's an array with a single entry => 0
-        uint16 offsetWithin16 = ticketNumber % 16;
-        uint16 storedBit = (arr[storageOffset] >> offsetWithin16) & uint16(1);
-        require(storedBit == 1, "already taken");
-
-        arr[storageOffset] =
-            arr[storageOffset] &
-            ~(uint16(1) << offsetWithin16);
-    }
+    //     bitmap[storageOffset] =
+    //         bitmap[storageOffset] &
+    //         ~(uint16(1) << offsetWithin16);
+    // }
 
     // --------------------------------------------------------------------------------------------------------
 
@@ -238,6 +200,32 @@ contract ERC721Merkle is ERC721, ERC2981 {
         return MAX_SUPPLY - 1; // token supply starts at 1
     }
 }
+
+// ------------------ Redundant bc of improved merkleProof offChain ------------------
+
+// function verifySignature(
+//     uint16 _ticketNumber,
+//     bytes calldata _signature,
+//     address _signer
+// ) public pure returns (bool) {
+//     bytes32 ticketNumberHash = keccak256(
+//         abi.encodePacked("\x19Ethereum Signed Message:\n2", _ticketNumber)
+//     );
+//     (bytes32 r, bytes32 s, uint8 v) = _split(_signature);
+//     address recoveredSigner = ecrecover(ticketNumberHash, v, r, s);
+//     return recoveredSigner == _signer;
+// }
+
+// function _split(
+//     bytes memory _signature
+// ) internal pure returns (bytes32 r, bytes32 s, uint8 v) {
+//     require(_signature.length == 65, "Invalid signature length");
+//     assembly {
+//         r := mload(add(_signature, 32))
+//         s := mload(add(_signature, 64))
+//         v := byte(0, mload(add(_signature, 96)))
+//     }
+// }
 
 // ----------------  Hashing & verifying process split up into functions ----------------
 
