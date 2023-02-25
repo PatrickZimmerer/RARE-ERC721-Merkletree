@@ -127,49 +127,6 @@ contract ERC721Merkle is ERC721, ERC2981 {
         _mint(msg.sender, _tokenSupply);
     }
 
-    // -------------------------   PRESALE WITH BITMAP CHECK   -------------------------
-    /*
-     * @title Presale function that let's specific users mint for half the price at presale ( only once )
-     * @notice only for users in our special users set
-     * @notice Im aware of users can use presale twice now through persaleMapping and presaleBitmap
-     * @dev should reduce the cost of the first mint by special users and add the user to the mapping alreadyMinted
-     */
-
-    function presaleBitmap() external payable {
-        uint256 _tokenSupply = tokenSupply; // added local variable to reduce gas cost
-        require(_tokenSupply < MAX_SUPPLY, "Max Supply reached.");
-        require(msg.value == PRESALE_PRICE, "Not enough ETH sent.");
-        require(msg.sender == tx.origin, "No bots"); // block smart contracts from minting
-        bytes32 leaf = keccak256(abi.encode(msg.sender)); // create a leaf node from the caller of this function
-        require(
-            MerkleProof.verify(_merkleProof, i_merkleRoot, leaf),
-            "Invalid Merkle Proof. User not allowed to do a presale mint"
-        ); // require user in whitelisted set of addresses for presale!
-        require(
-            canUserMintBitmap(msg.sender, INTERACTION_PRESALE_INDEX),
-            "Already claimed the presale NFT."
-        ); // user should only be able to claim presale once => check with BITMAP
-        setUserCanMintBitmap(msg.sender, INTERACTION_PRESALE_INDEX);
-        unchecked {
-            _tokenSupply++; // added unchecked block since overflow check gets handled by require MAX_SUPPLY
-        }
-        tokenSupply = _tokenSupply;
-        _mint(msg.sender, _tokenSupply);
-    }
-
-    function setUserCanMintBitmap(address user, uint8 interactionIndex) public {
-        require(interactionIndex < 16, "Invalid interaction index");
-        canUserMintBitmaps[user] |= uint16(1) << interactionIndex;
-    }
-
-    function canUserMintBitmap(
-        address user,
-        uint8 interactionIndex
-    ) public view returns (bool) {
-        require(interactionIndex < 16, "Invalid interaction index");
-        return canUserMintBitmaps[user] & (uint16(1) << interactionIndex) != 0;
-    }
-
     // -------------------------   PRESALE WITH BITMAP CHECK LIKE IN ARTICLE  -------------------------
     /*
      * @title Presale function that let's specific users mint for half the price at presale ( only once )
