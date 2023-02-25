@@ -77,8 +77,8 @@ contract ERC721Merkle is ERC721, ERC2981 {
 
     /*
      * @title Basic minting function
-     * @notice every user can mint as many NFT as the maxSupply supplies
-     * @dev when passing the checks it calls the internal _mint function in ERC721
+     * @notice every user can mint as many NFT until the maxSupply is reached
+     * @dev calls the _safeMint method to avoid sending NFTs to non ERC721Receiver contracts
      */
     function mint(address _to) external payable {
         uint256 _tokenSupply = tokenSupply; // added local variable to reduce gas cost (amount of READs)
@@ -94,10 +94,9 @@ contract ERC721Merkle is ERC721, ERC2981 {
     // -------------------------   PRESALE WITH MAPPING CHECK   -------------------------
 
     /*
-     * @title Presale function that let's specific users mint for half the price at presale ( only once )
+     * @title Presale function that let's specific users mint for half the price at presale (only once)
      * @notice only for users in our special users set
-     * @notice Im aware of users can use presale twice now through persaleMapping and presaleBitmap
-     * @dev should reduce the cost of the first mint by special users and add the user to the mapping alreadyMinted
+     * @dev should reduce the cost of the first mint for special users and add the user to the mapping alreadyMinted
      */
     // function presaleMapping(bytes32[] calldata _merkleProof) external payable {
     //     uint256 _tokenSupply = tokenSupply; // added local variable to reduce gas cost
@@ -123,10 +122,9 @@ contract ERC721Merkle is ERC721, ERC2981 {
 
     // -------------------------   PRESALE WITH BITMAP CHECK LIKE IN ARTICLE  -------------------------
     /*
-     * @title Presale function that let's specific users mint for half the price at presale ( only once )
+     * @title Presale function that let's specific users mint for half the price at presale (only once)
      * @notice only for users in our special users set
-     * @notice Im aware of users can use presale twice now through persaleMapping and presaleBitmap
-     * @dev should reduce the cost of the first mint by special users and add the user to the mapping alreadyMinted
+     * @dev should reduce the cost of the first mint for special users and should update the users
      */
 
     function presaleBitmap(
@@ -151,7 +149,7 @@ contract ERC721Merkle is ERC721, ERC2981 {
 
     function claimTicketOrBlockTransaction(uint16 ticketNumber) internal {
         require(ticketNumber < MAX_SUPPLY, "That ticket doesn't exist");
-        uint16 storageSlot = 0; // since it's an array with a single entry => 0
+        uint16 storageSlot = 0; // since it's only a single entry => 0
         uint16 offsetWithin16;
         uint16 localGroup;
         uint16 storedBit;
