@@ -44,14 +44,16 @@ import "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
  */
 contract ERC721Merkle is ERC721, ERC2981 {
     // using uints which are slightly more efficient than bools because the EVM casts bools to uint
-    mapping(address => uint256) public canUserPresale;
+    // mapping(address => uint256) public canUserPresale;
 
     // merkle tree
     bytes32 private immutable merkleRoot;
 
     // bitmap
-    // uint16 private constant MAX_INT = 0xffff;
+    uint16 private constant MAX_INT = 0xffff;
     // uint16[1] bitmap = [MAX_INT];
+    uint16 private ticketGroup0 = MAX_INT;
+    uint16 private constant MAX_TICKETS = 1 * 16;
 
     /* State Variables */
     uint256 public tokenSupply = 1;
@@ -97,27 +99,27 @@ contract ERC721Merkle is ERC721, ERC2981 {
      * @notice Im aware of users can use presale twice now through persaleMapping and presaleBitmap
      * @dev should reduce the cost of the first mint by special users and add the user to the mapping alreadyMinted
      */
-    function presaleMapping(bytes32[] calldata merkleProof) external payable {
-        uint256 _tokenSupply = tokenSupply; // added local variable to reduce gas cost
-        require(_tokenSupply < MAX_SUPPLY, "Max Supply reached.");
-        require(msg.value == PRESALE_PRICE, "Not enough ETH sent.");
-        bytes32 leaf = keccak256(abi.encode(_msgSender())); // create a leaf node from the caller of this function
-        require(
-            MerkleProof.verify(merkleProof, merkleRoot, leaf),
-            "Invalid Merkle Proof. User not allowed to do a presale mint"
-        ); // require user address in whitelist for presale!
-        require(
-            canUserPresale[_msgSender()] < 1,
-            "Already claimed the presale mint."
-        ); // user should only be able to claim presale once => check with MAPPING
-        canUserPresale[_msgSender()]++; // setting the users amountLeftToMint on the map after _mint
+    // function presaleMapping(bytes32[] calldata _merkleProof) external payable {
+    //     uint256 _tokenSupply = tokenSupply; // added local variable to reduce gas cost
+    //     require(_tokenSupply < MAX_SUPPLY, "Max Supply reached.");
+    //     require(msg.value == PRESALE_PRICE, "Not enough ETH sent.");
+    //     bytes32 leaf = keccak256(abi.encode(_msgSender())); // create a leaf node from the caller of this function
+    //     require(
+    //         MerkleProof.verify(_merkleProof, merkleRoot, leaf),
+    //         "Invalid Merkle Proof. User not allowed to do a presale mint"
+    //     ); // require user address in whitelist for presale!
+    //     require(
+    //         canUserPresale[_msgSender()] < 1,
+    //         "Already claimed the presale mint."
+    //     ); // user should only be able to claim presale once => check with MAPPING
+    //     canUserPresale[_msgSender()]++; // setting the users amountLeftToMint on the map after _mint
 
-        unchecked {
-            _tokenSupply++; // added unchecked block since overflow check gets handled by require MAX_SUPPLY
-        }
-        tokenSupply = _tokenSupply;
-        _safeMint(_msgSender(), _tokenSupply - 1);
-    }
+    //     unchecked {
+    //         _tokenSupply++; // added unchecked block since overflow check gets handled by require MAX_SUPPLY
+    //     }
+    //     tokenSupply = _tokenSupply;
+    //     _safeMint(_msgSender(), _tokenSupply - 1);
+    // }
 
     // -------------------------   PRESALE WITH BITMAP CHECK LIKE IN ARTICLE  -------------------------
     /*
@@ -127,36 +129,47 @@ contract ERC721Merkle is ERC721, ERC2981 {
      * @dev should reduce the cost of the first mint by special users and add the user to the mapping alreadyMinted
      */
 
-    // function presaleBitmap(uint16 _ticketNumber) external payable {
-    //     uint256 _tokenSupply = tokenSupply; // added local variable to reduce gas cost
-    //     require(_tokenSupply < MAX_SUPPLY, "Max Supply reached.");
-    //     require(msg.value == PRESALE_PRICE, "Not enough ETH sent.");
-    //     require(_msgSender() == tx.origin, "No bots"); // block smart contracts from minting
-    //     bytes32 leaf = keccak256(abi.encode(_msgSender())); // create a leaf node from the caller of this function
-    //     require(
-    //         MerkleProof.verify(_merkleProof, i_merkleRoot, leaf),
-    //         "Invalid Merkle Proof. User not allowed to do a presale mint"
-    //     ); // require user in whitelisted set of addresses for presale!
-    //     claimTicketOrBlockTransaction(_ticketNumber);
-    //     unchecked {
-    //         _tokenSupply++; // added unchecked block since overflow check gets handled by require MAX_SUPPLY
-    //     }
-    //     tokenSupply = _tokenSupply;
-    //     _safeMint(_msgSender(), _tokenSupply);
-    // }
+    function presaleBitmap(
+        uint16 _ticketNumber,
+        bytes32[] calldata _merkleProof
+    ) external payable {
+        uint256 _tokenSupply = tokenSupply; // added local variable to reduce gas cost
+        require(_tokenSupply < MAX_SUPPLY, "Max Supply reached.");
+        require(msg.value == PRESALE_PRICE, "Not enough ETH sent.");
+        bytes32 leaf = keccak256(abi.encode(_msgSender(), _ticketNumber)); // create a leaf node from the caller + _ticketNumber
+        require(
+            MerkleProof.verify(_merkleProof, merkleRoot, leaf),
+            "Invalid Merkle Proof. User not allowed to do a presale mint"
+        ); // require user in whitelisted set of addresses for presale!
+        claimTicketOrBlockTransaction(_ticketNumber);
+        unchecked {
+            _tokenSupply++; // added unchecked block since overflow check gets handled by require MAX_SUPPLY
+        }
+        tokenSupply = _tokenSupply;
+        _safeMint(_msgSender(), _tokenSupply);
+    }
 
-    // function claimTicketOrBlockTransaction(uint16 ticketNumber) internal {
-    //     require(ticketNumber < MAX_SUPPLY, "That ticket doesn't exist");
-    //     uint16 storageOffset = 0; // since it's an array with a single entry => 0
-    //     uint16 offsetWithin16 = ticketNumber % 16;
-    //     uint16 storedBit = (bitmap[storageOffset] >> offsetWithin16) &
-    //         uint16(1);
-    //     require(storedBit == 1, "already taken");
+    function claimTicketOrBlockTransaction(uint16 ticketNumber) internal {
+        require(ticketNumber < MAX_SUPPLY, "That ticket doesn't exist");
+        uint16 storageSlot = 0; // since it's an array with a single entry => 0
+        uint16 offsetWithin16;
+        uint16 localGroup;
+        uint16 storedBit;
+        unchecked {
+            offsetWithin16 = ticketNumber % 16;
+        }
+        assembly {
+            storageSlot := add(ticketGroup0.slot, storageSlot)
+            localGroup := sload(storageSlot)
+        }
 
-    //     bitmap[storageOffset] =
-    //         bitmap[storageOffset] &
-    //         ~(uint16(1) << offsetWithin16);
-    // }
+        storedBit = (localGroup >> offsetWithin16) & uint16(1);
+        require(storedBit == 1, "already taken");
+
+        assembly {
+            sstore(storageSlot, localGroup)
+        }
+    }
 
     // --------------------------------------------------------------------------------------------------------
 
