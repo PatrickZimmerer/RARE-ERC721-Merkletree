@@ -8,6 +8,27 @@ module.exports = async function ({ getNamedAccounts, deployments }) {
     const { deploy, log } = deployments;
     const { deployer } = await getNamedAccounts();
 
+    // Generate set of tickets for special users
+    const ticket1 = "1";
+    const ticket2 = "2";
+    const ticket3 = "3";
+    const ticket4 = "4";
+    const ticket5 = "5";
+    const ticket6 = "6";
+
+    // Generate set of special users that can enter the presale pass in this in the arguments when trying to use
+    // the bitmap approach so instead of signing the transaction with the ticket as data and verifying the signature
+    // and if the user already used his ticket and is approved for that ticket we can just include the ticketnumber in
+    // the address hash on this case my address has ticket nr 1 & 6
+    const approvedAddressesForPresaleBitmap = [
+        "0xe4064d8E292DCD971514972415664765e51B5364" + ticket1,
+        "0x98697033803CEf8bdDB7CA883786CfA9a96F2Be4" + ticket2,
+        "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" + ticket3,
+        "0xb7e390864a90b7b923c9f9310c6f98aafe43f707" + ticket4,
+        "0xea674fdde714fd979de3edf0f56aa9716b898ec8" + ticket5,
+        "0xe4064d8E292DCD971514972415664765e51B5364" + ticket6,
+    ];
+
     // Generate set of special users that can enter the presale
     const approvedAddressesForPresale = [
         "0xe4064d8E292DCD971514972415664765e51B5364",
