@@ -6,31 +6,24 @@ import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/token/common/ERC2981.sol";
 import "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
 
-// QUESTION: Merkle trees are only cost effective for ~32 or fewer addressses as stated in GitHub Repo whats the other option for > 32?
-// ANSWER:
-
 // QUESTION: can we make those 2 constants a uint32 or something lower to save gas since we know the value and they are consts?
 // QUESTION: token supply won't reach > 11 can we make that a lower uint as well? =>
 // CONCLUSION: User will have to pay more because pulling a uint <256 from storage forces the evm to cast it to a uint256
 // => cheaper at deployment but more expensive for the end user
+// ANSWER:
 
-// QUESTION: In the solidity course of Patrick Collins we learnt strings in solidity are basically an array so it's cheaper to make an if check
-//           and return a custom error instead? Is it good practice or did something change in the last year / months?
+// QUESTION: Merkle trees are only cost effective for ~32 or fewer addressses as stated in GitHub Repo whats the other option for > 32?
+// ANSWER:
+
+// QUESTION: When should we use the _ on variables I just know those marking a private variable / method but sometimes
+//           they are used in input variables and sometimes not its quite confusing and I don't see a clear pattern
 // ANSWER:
 
 // QUESTION: We also learnt the coding convention wirting storage variables with s as a prefix and private variables with _ as a prefix
 //           and immutables with i as a prefix, is this still the "best practice"?
 // ANSWER:
 
-// QUESTION: about merkleProof did I do that right and put it as an inupt Param into constructor so the logic can happen off chain,
-//           can we also move the merkleProof array offChain somehow in a database (later on obviously)?
-// ANSWER:
-
-// QUESTION: Can I handle both cases (presale & casual mint) in one function to save gas?
-// ANSWER:
-
-// QUESTION: Should I have adjusted the metadata which the NFT returns (_baseUri) to specify the seller_fee_basis_points (250 => 2.5%) & fee_recipient
-//           which is needed on older nft market places like opensea to make those royalties availible there
+// QUESTION: merkleProof will be generated offChain in a database and the user will send it with the transaction?
 // ANSWER:
 
 // QUESTION: Is there a way to check gas efficiency without wrting tests and using the gas reporter ?
