@@ -137,7 +137,6 @@ contract ERC721Merkle is ERC721, ERC2981 {
     }
 
     function claimTicketOrBlockTransaction(uint16 ticketNumber) internal {
-        require(ticketNumber < MAX_SUPPLY, "That ticket doesn't exist");
         uint16 storageSlot = 0; // since it's only a single entry => 0
         uint16 offsetWithin16;
         uint16 localGroup;
