@@ -17,7 +17,7 @@ contract ERC721Merkle is ERC721, ERC2981 {
     mapping(address => uint256) public canUserPresale;
 
     // merkle tree
-    bytes32 private immutable merkleRoot;
+    bytes32 private merkleRoot;
 
     // bitmap
     uint16 private constant MAX_INT = 0xffff;
@@ -134,7 +134,10 @@ contract ERC721Merkle is ERC721, ERC2981 {
         }
     }
 
-    // --------------------------------------------------------------------------------------------------------
+    function setMerkleRoot(bytes32 _merkleRoot) external {
+        require(msg.sender == deployer, "You are not the owner");
+        merkleRoot = _merkleRoot;
+    }
 
     /*
      * @title Sets royalty fee & receiver
